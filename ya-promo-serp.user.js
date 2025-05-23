@@ -50,7 +50,6 @@
       const label = document.createElement('span');
       label.className = 'promo-title-label';
       label.textContent = 'ПРОМО';
-      // вставляем перед текстом заголовка
       titleSpan.prepend(label);
     }
   }
