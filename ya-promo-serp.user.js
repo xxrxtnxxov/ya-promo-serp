@@ -1,16 +1,16 @@
 // ==UserScript==
 // @name         Yandex SERP: Promo
 // @namespace    https://github.com/xxrxtnxxov
-// @version      2.0
-// @description  Добавляет в начало заголовка промо-ссылок стилизованный бейдж «ПРОМО» (белый текст на красном фоне).
+// @version      3.0
+// @description  Явно помечает блоки рекламы в блоках «Поиск» и «Квартиры».
 // @author       xxrxtnxxov
 // @homepageURL  https://github.com/xxrxtnxxov/ya-promo-serp
 // @updateURL    https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya-promo-serp.user.js
 // @downloadURL  https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya-promo-serp.user.js
 // @supportURL   https://github.com/xxrxtnxxov/ya-promo-serp/issues
 // @icon         https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya.png
-// @match        https://yandex.ru/search/*
 // @match        https://yandex.ru/search*
+// @match        https://yandex.ru/realty*
 // @grant        none
 // @run-at       document-idle
 // @license      MIT
@@ -21,7 +21,7 @@
 
   const style = document.createElement('style');
   style.textContent = `
-    .promo-title-label {
+    .promo-title-label, .realty-ad-label {
       display: inline-block;
       margin-right: 6px;
       padding: 1px 4px;
@@ -32,15 +32,15 @@
       line-height: 1;
       border-radius: 1px;
       vertical-align: middle;
+      pointer-events: none;
     }
+    li[data-fast] { position: relative; }
   `;
   document.head.appendChild(style);
 
-  function markPromoInCard(card) {
+  function markPromoInSearch(card) {
     const titleSpan = card.querySelector('span.OrganicTitleContentSpan');
-    if (!titleSpan) return;
-
-    if (titleSpan.querySelector('.promo-title-label')) return;
+    if (!titleSpan || titleSpan.querySelector('.promo-title-label')) return;
 
     const hasOffer = !!card.querySelector('.PromoOffer, [data-fast-name="PromoOffer"]');
     const hasCorner = Array.from(card.querySelectorAll('span'))
@@ -54,20 +54,53 @@
     }
   }
 
-  function processAllCards() {
-    document.querySelectorAll('li[data-fast]').forEach(markPromoInCard);
+  function processSearch() {
+    document.querySelectorAll('li[data-fast]').forEach(markPromoInSearch);
+    new MutationObserver(muts => {
+      muts.forEach(({ addedNodes }) => {
+        addedNodes.forEach(node => {
+          if (node.nodeType === 1 && node.matches('li[data-fast]')) {
+            markPromoInSearch(node);
+          }
+        });
+      });
+    }).observe(document.body, { childList: true, subtree: true });
   }
 
-  const observer = new MutationObserver(muts => {
-    muts.forEach(({ addedNodes }) => {
-      addedNodes.forEach(node => {
-        if (node.nodeType === 1 && node.matches('li[data-fast]')) {
-          markPromoInCard(node);
-        }
-      });
-    });
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+  function markAdInRealty(el) {
+    if (el.querySelector('.realty-ad-label')) return;
+    if (!/^\s*Реклама\s*$/.test(el.textContent)) return;
 
-  processAllCards();
+    let target = el.closest('h3, .OfferSnippet-Header') || el;
+    const label = document.createElement('span');
+    label.className = 'realty-ad-label';
+    label.textContent = 'РЕКЛАМА';
+    target.prepend(label);
+  }
+
+  function processRealty() {
+    Array.from(document.querySelectorAll('div, span'))
+      .filter(el => /^\s*Реклама\s*$/.test(el.textContent))
+      .forEach(markAdInRealty);
+
+    new MutationObserver(muts => {
+      muts.forEach(({ addedNodes }) => {
+        addedNodes.forEach(node => {
+          if (node.nodeType === 1) {
+            Array.from(node.querySelectorAll('div, span'))
+              .filter(el => /^\s*Реклама\s*$/.test(el.textContent))
+              .forEach(markAdInRealty);
+          }
+        });
+      });
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+
+  if (/^\/search(?:\/|$)/.test(location.pathname)) {
+    processSearch();
+  }
+  if (/^\/realty(?:\/|$)/.test(location.pathname)) {
+    processRealty();
+  }
+
 })();
