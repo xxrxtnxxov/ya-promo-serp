@@ -1,17 +1,17 @@
 // ==UserScript==
 // @name         Yandex SERP: Promo
-// @namespace    https://github.com/xxrxtnxxov 
-// @version      5.1
+// @namespace    https://github.com/xxrxtnxxov
+// @version      5.1.1
 // @description  Добавляет стилизованный бейдж «ПРОМО» и «РЕКЛАМА» к рекламным блокам Яндекса в разделах: «Поиск», «Финансы» и «Квартиры».
 // @author       xxrxtnxxov
-// @homepageURL  https://github.com/xxrxtnxxov/ya-promo-serp 
-// @updateURL    https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya-promo-serp.user.js 
-// @downloadURL  https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya-promo-serp.user.js 
-// @supportURL   https://github.com/xxrxtnxxov/ya-promo-serp/issues 
-// @icon         https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya.png 
-// @match        https://yandex.ru/search* 
-// @match        https://yandex.ru/realty* 
-// @match        https://yandex.ru/finance* 
+// @homepageURL  https://github.com/xxrxtnxxov/ya-promo-serp
+// @updateURL    https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya-promo-serp.user.js
+// @downloadURL  https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya-promo-serp.user.js
+// @supportURL   https://github.com/xxrxtnxxov/ya-promo-serp/issues
+// @icon         https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya.png
+// @match        https://yandex.ru/search*
+// @match        https://yandex.ru/realty*
+// @match        https://yandex.ru/finance*
 // @grant        none
 // @run-at       document-start
 // @license      MIT
