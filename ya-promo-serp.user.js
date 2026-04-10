@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Yandex SERP: Promo
 // @namespace    https://github.com/xxrxtnxxov
-// @version      6.8.2
+// @version      6.13.0
 // @description  Подсвечивает рекламные блоки в некоторых разделах поисковой системы Яндекс.
 // @author       xxrxtnxxov
 // @homepageURL  https://github.com/xxrxtnxxov/ya-promo-serp
@@ -18,6 +18,7 @@
 // ==/UserScript==
 
 (async function () {
+
     'use strict';
 
     const state = {
@@ -47,31 +48,34 @@
         const labels = [];
 
         const attrSelectors = [
-            '[aria-label="Реклама"]', 
-            '[aria-label="Промо"]', 
-            '[data-testid*="promo"]', 
+            '[aria-label="Реклама"]',
+            '[aria-label="Промо"]',
+            '[data-testid*="promo"]',
             '[data-testid*="ad-label"]',
-            '.PromoOffer', 
+            '.PromoOffer',
             '[data-fast-name="PromoOffer"]',
             '.AdvLabel-Text',
+            '.AdvLabel',           // ← добавлено: контейнер метки "Промо" на /realty
+            '.AdvCaption',         // ← добавлено: контейнер метки "Реклама" на /realty
             '.mg-adv-label',
             '.direct-label',
             '[data-baobab-name="adv"]',
             '.DistributionLinkBro'
         ].join(', ');
-        
+
         document.querySelectorAll(attrSelectors).forEach(el => labels.push(el));
 
-        const keywords = ['Реклама', 'Промо', 'Яндекс Директ', 'Спонсорский'];
+        const keywords = ['реклама', 'промо', 'яндекс директ', 'спонсорский'];
+
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
-        
         let node;
         while ((node = walker.nextNode())) {
             if (!node.nodeValue) continue;
-            
-            const cleanText = node.nodeValue.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
-            
-            if (keywords.includes(cleanText)) {
+            const cleanText = node.nodeValue.replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
+            const isAd = keywords.includes(cleanText) ||
+                         (cleanText.startsWith('реклама') && cleanText.length < 25) ||
+                         (cleanText.startsWith('промо') && cleanText.length < 25);
+            if (isAd) {
                 const parent = node.parentElement;
                 if (parent && !['script', 'style', 'noscript'].includes(parent.tagName.toLowerCase())) {
                     labels.push(parent);
@@ -83,44 +87,60 @@
     }
 
     function findCardAncestor(element) {
-        const semanticClasses = [
-            '.serp-item', 
-            '.serp-list__item',
-            'li[data-fast]', 
-            '.Organic', 
-            'article', 
-            '[role="listitem"]', 
-            '[data-log-node]', 
-            '.mg-card', 
-            '.mg-snippet',
-            '.news-feed__item', 
-            '.NewsFeed-Item',
-            '.OfferSnippet', 
-            '.OffersSerpItem',
-            '.bank-product-card',
-            '.VideoItem',
-            '.VideoSnippet',
-            '.DistributionLinkBro' 
-        ].join(', ');
-
-        const semanticMatch = element.closest(semanticClasses);
-        if (semanticMatch) return semanticMatch;
+        // ← добавлено: прямые классы рекламных карточек на /realty — возвращаем сразу
+        const directAdCard = element.closest(
+            '.RealtyListing-AdvItem, .OfferSnippet_highlight, .SnippetCard'
+        );
+        if (directAdCard && directAdCard !== document.body) {
+            return directAdCard;
+        }
 
         let current = element.parentElement;
-        let maxDepth = 10; 
+        let maxDepth = 15;
         let depth = 0;
+
+        const microSelectors = [
+            '.Scroller-Item', '.scroller__item', '.Carousel-Item', '.Slider-Item',
+            '[data-baobab-name="product"]', '[data-baobab-name="item"]', '[data-baobab-name="snippet"]',
+            '[data-baobab-name="offer"]', '[data-baobab-name="card"]',
+            '.bank-product-card', '.mg-card', '.mg-snippet', '.news-feed__item', '.NewsFeed-Item',
+            '[class*="OfferSnippet"]', '[class*="OffersSerpItem"]', '[class*="realty-snippet"]',
+            '.DistributionLinkBro', '.TypoCard', '.UniSnippet', '.Snippet'
+        ].join(', ');
+
+        const macroSelectors = [
+            '.serp-item', 'li[data-fast]', '.Organic', 'article', '[role="listitem"]'
+        ].join(', ');
 
         while (current && current !== document.body && depth < maxDepth) {
             const tag = current.tagName.toLowerCase();
-            
-            if (['main', 'header', 'nav', 'section', 'aside', 'ul', 'ol', 'table'].includes(tag)) break;
+
+            if (['main', 'header', 'nav', 'section', 'aside', 'body'].includes(tag)) break;
+
+            if (current.matches(microSelectors)) {
+                return current;
+            }
 
             const className = current.getAttribute('class') || '';
-            
-            if (/(card|snippet|item|story|offer|product|grid__col|video)/i.test(className)) {
-                if (!/(header|nav|menu|popup|modal|tooltip)/i.test(className)) {
+
+            if (tag === 'ul' || tag === 'ol' || tag === 'tbody' || /(scroller|carousel|slider|scroll-box|scroll__container|swiper-wrapper)/i.test(className)) {
+                let child = element;
+                while (child && child.parentElement !== current) {
+                    child = child.parentElement;
+                }
+                if (child && child !== element && !['span', 'strong', 'b', 'i', 'em', 'svg'].includes(child.tagName.toLowerCase())) {
+                    return child;
+                }
+            }
+
+            if (/(card|snippet|item|offer|product|grid__col)/i.test(className)) {
+                if (!/(serp-list|wrap|container|scroller|carousel|slider|row|header|nav|menu|popup|modal|tooltip|layout)/i.test(className)) {
                     return current;
                 }
+            }
+
+            if (current.matches(macroSelectors)) {
+                return current;
             }
 
             current = current.parentElement;
@@ -129,26 +149,19 @@
 
         const linkMatch = element.closest('a');
         if (linkMatch && linkMatch.parentElement) {
-            return linkMatch;
-        }
-
-        current = element.parentElement;
-        for (let i = 0; i < 4; i++) {
-            if (current && current.parentElement && !['main', 'header', 'nav', 'section', 'aside', 'ul', 'ol', 'table'].includes(current.parentElement.tagName.toLowerCase())) {
-                current = current.parentElement;
-            } else {
-                break;
+            const text = linkMatch.textContent.replace(/[\s\u200B-\u200D\uFEFF]+/g, '').toLowerCase();
+            if (!/^(реклама|промо|яндексдирект|спонсорский)/.test(text)) {
+                return linkMatch;
             }
         }
 
-        return current || element.parentElement;
+        return element.parentElement;
     }
 
     function applyVisibility() {
         const cards = document.querySelectorAll('[data-ya-promo-card="true"]');
         cards.forEach(card => {
-            const el = card;
-            el.style.display = state.isPromoVisible ? '' : 'none';
+            card.style.display = state.isPromoVisible ? '' : 'none';
         });
     }
 
@@ -186,7 +199,7 @@
 
         const host = document.createElement('div');
         host.id = 'ya-promo-shield-host';
-        host.style.cssText = 'display: inline-flex; align-items: center; vertical-align: middle; margin: 0 10px; z-index: 100;';
+        host.style.cssText = 'display: flex; align-items: center; margin-left: 8px; position: relative; z-index: 100;';
 
         let injected = false;
 
@@ -197,7 +210,7 @@
             const parentLi = vseTab.closest('li');
             if (parentLi && parentLi.parentElement && parentLi.parentElement.tagName.toLowerCase() === 'ul') {
                 const liHost = document.createElement('li');
-                liHost.style.display = 'inline-flex';
+                liHost.style.cssText = 'display: inline-block; vertical-align: middle; line-height: 1;';
                 liHost.appendChild(host);
                 parentLi.after(liHost);
             } else {
@@ -206,10 +219,10 @@
             injected = true;
         } else {
             const headerSelectors = [
-                '.HeaderDesktopActions', 
+                '.HeaderDesktopActions',
                 '.HeaderDesktop-Actions',
-                'nav.HeaderNav', 
-                '.HeaderDesktop-Navigation', 
+                'nav.HeaderNav',
+                '.HeaderDesktop-Navigation',
                 '.Header-Nav',
                 '.serp-header__nav',
                 '.news-header__nav',
@@ -231,11 +244,17 @@
         const style = document.createElement('style');
         style.textContent = `
             .btn {
-                display: inline-block;
-                padding: 6px 12px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                box-sizing: border-box;
+                height: 28px;
+                padding: 0 12px;
+                margin: 0;
                 font-family: system-ui, -apple-system, sans-serif;
                 font-size: 12px;
                 font-weight: 700;
+                line-height: 1;
                 border: none;
                 border-radius: 6px;
                 cursor: pointer;
@@ -243,17 +262,9 @@
                 user-select: none;
                 white-space: nowrap;
             }
-            .btn:hover { 
-                opacity: 0.85; 
-            }
-            .btn.visible { 
-                background-color: #DC143C; 
-                color: #fff; 
-            }
-            .btn.hidden { 
-                background-color: #777; 
-                color: #fff; 
-            }
+            .btn:hover { opacity: 0.85; }
+            .btn.visible { background-color: #DC143C; color: #fff; }
+            .btn.hidden  { background-color: #777;    color: #fff; }
         `;
 
         const btn = document.createElement('button');
@@ -263,10 +274,8 @@
         const toggleHandler = () => {
             state.isPromoVisible = !state.isPromoVisible;
             GM_setValue('promoVisible', state.isPromoVisible);
-            
             btn.textContent = state.isPromoVisible ? 'УБРАТЬ ПРОМО' : 'ПОКАЗАТЬ ПРОМО';
             btn.className = `btn ${state.isPromoVisible ? 'visible' : 'hidden'}`;
-            
             applyVisibility();
             if (state.isPromoVisible) processDOM();
         };
@@ -276,11 +285,9 @@
     }
 
     await waitForBody();
-    
     injectUI();
-    
     processDOM();
-    
+
     const observer = new MutationObserver((mutations) => {
         const hasAddedNodes = mutations.some(m => m.addedNodes.length > 0);
         if (hasAddedNodes) {
@@ -288,10 +295,7 @@
             processDOM();
         }
     });
-    
-    observer.observe(document.body, { 
-        childList: true, 
-        subtree: true 
-    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
 
 })();
