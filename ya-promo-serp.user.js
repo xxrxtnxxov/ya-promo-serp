@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Yandex SERP: Promo
 // @namespace    https://github.com/xxrxtnxxov
-// @version      6.13.0
+// @version      6.13.1
 // @description  Подсвечивает рекламные блоки в некоторых разделах поисковой системы Яндекс.
 // @author       xxrxtnxxov
 // @homepageURL  https://github.com/xxrxtnxxov/ya-promo-serp
@@ -55,8 +55,8 @@
             '.PromoOffer',
             '[data-fast-name="PromoOffer"]',
             '.AdvLabel-Text',
-            '.AdvLabel',           // ← добавлено: контейнер метки "Промо" на /realty
-            '.AdvCaption',         // ← добавлено: контейнер метки "Реклама" на /realty
+            '.AdvLabel',
+            '.AdvCaption',
             '.mg-adv-label',
             '.direct-label',
             '[data-baobab-name="adv"]',
@@ -87,7 +87,6 @@
     }
 
     function findCardAncestor(element) {
-        // ← добавлено: прямые классы рекламных карточек на /realty — возвращаем сразу
         const directAdCard = element.closest(
             '.RealtyListing-AdvItem, .OfferSnippet_highlight, .SnippetCard'
         );
