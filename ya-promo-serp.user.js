@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Yandex SERP: Promo
 // @namespace    https://github.com/xxrxtnxxov
-// @version      6.8.1
+// @version      6.8.2
 // @description  Подсвечивает рекламные блоки в некоторых разделах поисковой системы Яндекс.
 // @author       xxrxtnxxov
 // @homepageURL  https://github.com/xxrxtnxxov/ya-promo-serp
@@ -11,8 +11,6 @@
 // @match        https://yandex.ru/search*
 // @match        https://yandex.ru/realty*
 // @match        https://yandex.ru/finance*
-// @match        https://yandex.ru/news*
-// @match        https://yandex.ru/video*
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-start
