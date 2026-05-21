@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         Yandex SERP: Promo
 // @namespace    https://github.com/xxrxtnxxov
-// @version      6.13.1
+// @version      6.14.0
 // @description  Подсвечивает рекламные блоки в некоторых разделах поисковой системы Яндекс.
 // @author       xxrxtnxxov
 // @homepageURL  https://github.com/xxrxtnxxov/ya-promo-serp
 // @updateURL    https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya-promo-serp.user.js
 // @downloadURL  https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya-promo-serp.user.js
 // @icon         https://raw.githubusercontent.com/xxrxtnxxov/ya-promo-serp/main/ya.png
+// @match        https://ya.ru/search*
 // @match        https://yandex.ru/search*
 // @match        https://yandex.ru/realty*
 // @match        https://yandex.ru/finance*
@@ -66,20 +67,46 @@
         document.querySelectorAll(attrSelectors).forEach(el => labels.push(el));
 
         const keywords = ['реклама', 'промо', 'яндекс директ', 'спонсорский'];
+        const ignoredTextContextSelectors = [
+            '.Path',
+            '.Organic-Path',
+            '.OrganicTitleContentSpan',
+            '.OrganicTextContentSpan',
+            '.Sitelinks-Title',
+            '.Snippet-Text',
+            '.TextContainer',
+            '.mini-suggest__popup',
+            '.mini-suggest__item',
+            '[class*="suggest"]',
+            '[class*="Suggest"]',
+            '[class*="MiniSuggest"]',
+            '[role="listbox"]',
+            '[role="option"]'
+        ].join(', ');
+
+        const isTextAdLabel = (text) => {
+            if (keywords.includes(text)) return true;
+
+            return /^(?:реклама|промо)(?:[\s:.,;()[\]{}\-–—]|$)/.test(text) && text.length < 25;
+        };
 
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
         let node;
         while ((node = walker.nextNode())) {
-            if (!node.nodeValue) continue;
-            const cleanText = node.nodeValue.replace(/[\u200B-\u200D\uFEFF]/g, '').trim().toLowerCase();
-            const isAd = keywords.includes(cleanText) ||
-                         (cleanText.startsWith('реклама') && cleanText.length < 25) ||
-                         (cleanText.startsWith('промо') && cleanText.length < 25);
-            if (isAd) {
-                const parent = node.parentElement;
-                if (parent && !['script', 'style', 'noscript'].includes(parent.tagName.toLowerCase())) {
-                    labels.push(parent);
-                }
+            if (!node.nodeValue || node.nodeValue.length > 80) continue;
+
+            const parent = node.parentElement;
+            if (
+                !parent ||
+                ['script', 'style', 'noscript'].includes(parent.tagName.toLowerCase()) ||
+                parent.closest(ignoredTextContextSelectors)
+            ) {
+                continue;
+            }
+
+            const cleanText = node.nodeValue.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/^[\s•·●○◆◇▪▫■□►▸▹*\-–—]+/, '').trim().toLowerCase();
+            if (isTextAdLabel(cleanText)) {
+                labels.push(parent);
             }
         }
 
@@ -171,15 +198,32 @@
                 if (label.dataset.yaPromoProcessed === "true") return;
                 label.dataset.yaPromoProcessed = "true";
 
-                if (!label.classList.contains('DistributionLinkBro')) {
-                    label.style.setProperty('background-color', '#DC143C', 'important');
-                    label.style.setProperty('color', '#fff', 'important');
-                    label.style.setProperty('padding', '2px 6px', 'important');
-                    label.style.setProperty('border-radius', '4px', 'important');
-                    label.style.setProperty('font-weight', 'bold', 'important');
-                    label.style.setProperty('font-size', '12px', 'important');
-                    label.style.setProperty('line-height', '1', 'important');
-                    label.style.setProperty('display', 'inline-block', 'important');
+                if (label.classList.contains('DistributionLinkBro')) return;
+
+                const textChild = Array.from(label.children).find(c =>
+                    c.classList.contains('AdvLabel-Text') || c.classList.contains('AdvCaption-Text')
+                );
+                const target = textChild || label;
+
+                const tMatch = target.textContent.match(/^[\s•·●○◆◇▪▫■□►▸▹*\-–—]+(.+)$/);
+                if (tMatch && /^(реклама|промо)/i.test(tMatch[1].trim())) {
+                    target.textContent = tMatch[1].trim();
+                }
+
+                const isPromoSnippet = label.classList.contains('InfoSection') ||
+                    Array.from(label.classList).some(cls => cls.startsWith('PromoOffer_'));
+                if (isPromoSnippet) {
+                    target.style.setProperty('outline', '2px dashed #DC143C', 'important');
+                    target.style.setProperty('outline-offset', '-2px', 'important');
+                } else {
+                    target.style.setProperty('background-color', '#DC143C', 'important');
+                    target.style.setProperty('color', '#fff', 'important');
+                    target.style.setProperty('padding', '2px 6px', 'important');
+                    target.style.setProperty('border-radius', '4px', 'important');
+                    target.style.setProperty('font-weight', 'bold', 'important');
+                    target.style.setProperty('font-size', '12px', 'important');
+                    target.style.setProperty('line-height', '1', 'important');
+                    target.style.setProperty('display', 'inline-block', 'important');
                 }
 
                 const card = findCardAncestor(label);
@@ -194,51 +238,39 @@
     });
 
     function injectUI() {
-        if (document.getElementById('ya-promo-shield-host')) return;
-
-        const host = document.createElement('div');
-        host.id = 'ya-promo-shield-host';
-        host.style.cssText = 'display: flex; align-items: center; margin-left: 8px; position: relative; z-index: 100;';
-
-        let injected = false;
-
         const navLinks = document.querySelectorAll('header a, nav a, [role="navigation"] a, .HeaderNav-Tab, .service-navigation__item, a[data-statlog*="tabs"]');
         const vseTab = Array.from(navLinks).find(el => el.textContent.trim() === 'Все');
 
-        if (vseTab) {
-            const parentLi = vseTab.closest('li');
-            if (parentLi && parentLi.parentElement && parentLi.parentElement.tagName.toLowerCase() === 'ul') {
-                const liHost = document.createElement('li');
-                liHost.style.cssText = 'display: inline-block; vertical-align: middle; line-height: 1;';
-                liHost.appendChild(host);
-                parentLi.after(liHost);
-            } else {
-                vseTab.after(host);
-            }
-            injected = true;
-        } else {
-            const headerSelectors = [
-                '.HeaderDesktopActions',
-                '.HeaderDesktop-Actions',
-                'nav.HeaderNav',
-                '.HeaderDesktop-Navigation',
-                '.Header-Nav',
-                '.serp-header__nav',
-                '.news-header__nav',
-                '.mg-header__actions',
-                '.VanillaHeader-Actions'
-            ].join(', ');
+        if (!vseTab) return;
 
-            const headerNav = document.querySelector(headerSelectors);
-            if (headerNav) {
-                headerNav.appendChild(host);
-                injected = true;
+        const existingHost = document.getElementById('ya-promo-shield-host');
+        const existingWrapper = document.getElementById('ya-promo-shield-host-wrapper');
+        if (existingHost && existingWrapper && existingWrapper.previousElementSibling === vseTab.closest('li')) return;
+        if (existingHost && !existingWrapper && existingHost.previousElementSibling === vseTab) return;
+
+        const host = existingHost || document.createElement('div');
+        host.id = 'ya-promo-shield-host';
+        host.style.cssText = 'display: flex; align-items: center; margin-left: 8px; position: relative; z-index: 100;';
+
+        const parentLi = vseTab.closest('li');
+        if (parentLi && parentLi.parentElement && parentLi.parentElement.tagName.toLowerCase() === 'ul') {
+            let liHost = existingWrapper;
+            if (!liHost || liHost.tagName.toLowerCase() !== 'li') {
+                liHost = document.createElement('li');
+                liHost.id = 'ya-promo-shield-host-wrapper';
+                liHost.style.cssText = 'display: inline-block; vertical-align: middle; line-height: 1;';
             }
+            liHost.appendChild(host);
+            parentLi.after(liHost);
+        } else {
+            if (existingWrapper) existingWrapper.remove();
+            vseTab.after(host);
         }
 
-        if (!injected) return;
+        if (host.shadowRoot || host.dataset.yaPromoUi === "true") return;
+        host.dataset.yaPromoUi = "true";
 
-        const shadow = host.attachShadow({ mode: 'closed' });
+        const shadow = host.attachShadow({ mode: 'open' });
 
         const style = document.createElement('style');
         style.textContent = `
@@ -288,7 +320,18 @@
     processDOM();
 
     const observer = new MutationObserver((mutations) => {
-        const hasAddedNodes = mutations.some(m => m.addedNodes.length > 0);
+        const hasAddedNodes = mutations.some(m => {
+            return Array.from(m.addedNodes).some(node => {
+                return !(
+                    node.nodeType === Node.ELEMENT_NODE &&
+                    (
+                        node.id === 'ya-promo-shield-host' ||
+                        node.id === 'ya-promo-shield-host-wrapper' ||
+                        node.closest?.('#ya-promo-shield-host, #ya-promo-shield-host-wrapper')
+                    )
+                );
+            });
+        });
         if (hasAddedNodes) {
             injectUI();
             processDOM();
